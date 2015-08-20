@@ -1,2 +1,3 @@
 # Hyperion
-Java Web development template
+
+Hyperion is a quiet simple java Web development template.
