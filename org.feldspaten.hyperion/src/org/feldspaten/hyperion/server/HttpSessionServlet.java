@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -619,7 +620,7 @@ public abstract class HttpSessionServlet extends HttpServlet {
 		final int size = 1024;
 
 		// Initialize new Random generator each time to increase entropy
-		final Random rnd = new Random(System.currentTimeMillis());
+		final Random rnd = new SecureRandom();
 		final StringBuffer buffer = new StringBuffer();
 
 		for (int i = 0; i < size; i++) {

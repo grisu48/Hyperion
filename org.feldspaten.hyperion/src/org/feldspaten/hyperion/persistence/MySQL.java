@@ -28,7 +28,8 @@ public class MySQL {
 	private static java.sql.Connection conn = null;
 
 	/** {@link SimpleDateFormat} for formatting dates to MySQL date instances */
-	private static final SimpleDateFormat sqlDateFormatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+	private static final SimpleDateFormat sqlDateFormatter = new SimpleDateFormat(
+			"yyyy-MM-dd HH:mm:ss");
 
 	/** Closed flag. After closing no further connections are established */
 	private static boolean closed = false;
@@ -45,15 +46,15 @@ public class MySQL {
 
 			Class.forName("com.mysql.jdbc.Driver").newInstance();
 		} catch (ClassNotFoundException e) {
-			System.err.println(
-					"Could not find jdbc driver. Try to download a valid jdbc driver from http://www.oracle.com!");
+			System.err
+					.println("Could not find jdbc driver. Try to download a valid jdbc driver from http://www.oracle.com!");
 			e.printStackTrace(System.err);
 		} catch (InstantiationException e) {
 			System.err.println("Could not find jdbc driver");
 			e.printStackTrace(System.err);
 		} catch (IllegalAccessException e) {
-			System.err.println(
-					"Access to JDBC driver denied. Try to download a valid jdbc driver from http://www.oracle.com!");
+			System.err
+					.println("Access to JDBC driver denied. Try to download a valid jdbc driver from http://www.oracle.com!");
 		}
 
 	}
@@ -64,7 +65,7 @@ public class MySQL {
 	 * @author phoenix
 	 *
 	 */
-	protected class Query {
+	public class Query {
 		/** Underlying statement for the query */
 		protected final Statement stmt;
 		/** Underlying {@link ResultSet} for returning results */
@@ -321,7 +322,8 @@ public class MySQL {
 		 * @throws SQLException
 		 *             If thrown while the query is executed
 		 */
-		protected synchronized ResultSet executeQuery(final String sql) throws SQLException {
+		public synchronized ResultSet executeQuery(final String sql)
+				throws SQLException {
 			cleanup();
 			this.query = sql;
 			this.rs = stmt.executeQuery(sql);
@@ -444,9 +446,11 @@ public class MySQL {
 		 * @throws SQLException
 		 *             If thrown while querying
 		 */
-		public synchronized ResultSetMetaData getResultSetMetaData() throws SQLException {
+		public synchronized ResultSetMetaData getResultSetMetaData()
+				throws SQLException {
 			if (rs == null)
-				throw new IllegalStateException("Cannot get ResultSetMetData when no ResultSet is available");
+				throw new IllegalStateException(
+						"Cannot get ResultSetMetData when no ResultSet is available");
 			return rs.getMetaData();
 		}
 
@@ -463,7 +467,8 @@ public class MySQL {
 		 * @throws SQLException
 		 *             If the insert statement fails
 		 */
-		public synchronized int insert(String tablename, Map<String, String> values) throws SQLException {
+		public synchronized int insert(String tablename,
+				Map<String, String> values) throws SQLException {
 			if (tablename.isEmpty() || values.isEmpty())
 				return 0;
 
@@ -544,8 +549,8 @@ public class MySQL {
 	 * @throws SQLException
 	 *             Thrown if the connection failed
 	 */
-	public MySQL(final String hostname, int port, final String username, final String password, final String database)
-			throws SQLException {
+	public MySQL(final String hostname, int port, final String username,
+			final String password, final String database) throws SQLException {
 		this.db_hostname = hostname;
 		this.db_port = port;
 		this.db_username = username;
@@ -587,7 +592,8 @@ public class MySQL {
 	 * @throws SQLException
 	 *             Thrown if occurring on database
 	 */
-	protected void execSql(final String[] sqls, final boolean transaction) throws SQLException {
+	protected void execSql(final String[] sqls, final boolean transaction)
+			throws SQLException {
 		final Statement stmt = createStatement();
 		try {
 			if (transaction)
@@ -647,7 +653,8 @@ public class MySQL {
 
 		final String url;
 		{
-			String url_ = "jdbc:mysql://" + db_hostname + ":" + db_port + "/" + db_database + "?user=" + db_username
+			String url_ = "jdbc:mysql://" + db_hostname + ":" + db_port + "/"
+					+ db_database + "?user=" + db_username
 					+ "&zeroDateTimeBehavior=convertToNull";
 			if (db_password != null && db_password.length() > 0)
 				url_ += "&password=" + db_password;
@@ -662,7 +669,8 @@ public class MySQL {
 				if (conn != null)
 					conn.close();
 			} catch (SQLException e) {
-				System.err.println("Error closing existing JDBC: " + e.getLocalizedMessage());
+				System.err.println("Error closing existing JDBC: "
+						+ e.getLocalizedMessage());
 				con.close();
 				return false;
 			}
@@ -672,7 +680,8 @@ public class MySQL {
 			return true;
 
 		} catch (SQLException e) {
-			System.err.println("New JDBC Connection failed: " + e.getLocalizedMessage());
+			System.err.println("New JDBC Connection failed: "
+					+ e.getLocalizedMessage());
 			return false;
 		}
 	}
@@ -690,7 +699,8 @@ public class MySQL {
 
 		final String url;
 		{
-			String url_ = "jdbc:mysql://" + db_hostname + ":" + db_port + "/" + db_database + "?user=" + db_username;
+			String url_ = "jdbc:mysql://" + db_hostname + ":" + db_port + "/"
+					+ db_database + "?user=" + db_username;
 			if (db_password != null && db_password.length() > 0)
 				url_ += "&password=" + db_password;
 			url = url_;
@@ -759,7 +769,8 @@ public class MySQL {
 	 * @throws SQLException
 	 *             Packet {@link SQLException} if occurring
 	 */
-	protected PreparedStatement createPreparedStatement(final String sql) throws SQLException {
+	protected PreparedStatement createPreparedStatement(final String sql)
+			throws SQLException {
 		checkConnection();
 		if (conn == null)
 			throw new SQLException("Error setting up SQL connection");
@@ -775,7 +786,8 @@ public class MySQL {
 			if (conn != null)
 				conn.close();
 		} catch (SQLException e) {
-			System.err.println("Error closing SQL connection: " + e.getMessage());
+			System.err.println("Error closing SQL connection: "
+					+ e.getMessage());
 			e.printStackTrace();
 		}
 	}
@@ -811,7 +823,8 @@ public class MySQL {
 
 	}
 
-	static Date getSqlDate(final ResultSet rs, final String columnName) throws SQLException {
+	static Date getSqlDate(final ResultSet rs, final String columnName)
+			throws SQLException {
 		final Timestamp timestamp = rs.getTimestamp(columnName);
 		if (timestamp == null)
 			return new Date();
