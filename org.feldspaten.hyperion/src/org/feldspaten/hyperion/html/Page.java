@@ -16,7 +16,7 @@ public class Page extends Html {
 	private String stylesheet = null;
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		final StringBuffer buffer = new StringBuffer();
 		buffer.append("<!DOCTYPE html>");
 		buffer.append("\n");
@@ -49,7 +49,7 @@ public class Page extends Html {
 	}
 
 	@Override
-	String generateFooter() {
+	protected String generateFooter() {
 		return "</body>";
 	}
 

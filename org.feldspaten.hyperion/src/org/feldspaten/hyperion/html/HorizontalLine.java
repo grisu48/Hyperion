@@ -3,7 +3,7 @@ package org.feldspaten.hyperion.html;
 public class HorizontalLine extends Html {
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		return "<hr>";
 	}
 

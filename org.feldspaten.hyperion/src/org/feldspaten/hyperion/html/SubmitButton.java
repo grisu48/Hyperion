@@ -35,7 +35,7 @@ public class SubmitButton extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		final StringBuffer buffer = new StringBuffer();
 		buffer.append("<input type=\"submit\" value=\"" + value + "\"");
 		if (name.length() > 0) {

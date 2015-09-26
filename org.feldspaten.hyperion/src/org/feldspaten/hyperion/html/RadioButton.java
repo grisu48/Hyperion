@@ -50,7 +50,7 @@ public class RadioButton extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		final StringBuffer buffer = new StringBuffer();
 		buffer.append("<input type=\"radio\"");
 		if (name.length() > 0) {

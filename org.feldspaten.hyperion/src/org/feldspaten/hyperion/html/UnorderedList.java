@@ -7,7 +7,7 @@ package org.feldspaten.hyperion.html;
 public class UnorderedList extends Html {
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		final StringBuffer buffer = new StringBuffer();
 		buffer.append("<ol>");
 
@@ -18,7 +18,7 @@ public class UnorderedList extends Html {
 	}
 
 	@Override
-	String generateFooter() {
+	protected String generateFooter() {
 		return "</ol>";
 	}
 

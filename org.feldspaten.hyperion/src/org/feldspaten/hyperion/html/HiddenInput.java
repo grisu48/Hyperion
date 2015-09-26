@@ -12,13 +12,13 @@ public class HiddenInput extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		return "<input type=\"hidden\" name=\"" + name + "\" value=\"" + value
 				+ "\">";
 	}
 
 	@Override
-	String generateFooter() {
+	protected String generateFooter() {
 		return "";
 	}
 

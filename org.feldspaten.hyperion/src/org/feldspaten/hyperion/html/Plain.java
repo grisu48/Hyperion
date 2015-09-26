@@ -18,7 +18,7 @@ public class Plain extends Html {
 	}
 
 	@Override
-	String generateFooter() {
+	protected String generateFooter() {
 		return "";
 	}
 
@@ -28,7 +28,7 @@ public class Plain extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		return html;
 	}
 }

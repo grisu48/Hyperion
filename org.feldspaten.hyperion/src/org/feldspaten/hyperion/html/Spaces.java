@@ -27,7 +27,7 @@ public class Spaces extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		if (count == 0)
 			return "";
 		else if (count == 1)

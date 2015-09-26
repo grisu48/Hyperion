@@ -33,7 +33,7 @@ public class Form extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		StringBuffer buffer = new StringBuffer();
 		buffer.append("<FORM");
 		if (!action.isEmpty()) {
@@ -51,7 +51,7 @@ public class Form extends Html {
 	}
 
 	@Override
-	String generateFooter() {
+	protected String generateFooter() {
 		return "</FORM>";
 	}
 

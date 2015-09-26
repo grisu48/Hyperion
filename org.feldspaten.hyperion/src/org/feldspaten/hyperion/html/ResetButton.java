@@ -13,7 +13,7 @@ public class ResetButton extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		return "<input type=\"reset\" value=\"" + value + "\">";
 	}
 }

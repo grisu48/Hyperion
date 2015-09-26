@@ -40,7 +40,7 @@ public class DropdownList extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		final StringBuffer buffer = new StringBuffer();
 		buffer.append("<select name=\"");
 		buffer.append(name);

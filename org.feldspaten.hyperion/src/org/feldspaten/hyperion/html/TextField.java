@@ -49,7 +49,7 @@ public class TextField extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		final StringBuffer buffer = new StringBuffer();
 
 		buffer.append("<input type=\"text\"");
@@ -76,7 +76,7 @@ public class TextField extends Html {
 	}
 
 	@Override
-	String generateFooter() {
+	protected String generateFooter() {
 		return "";
 	}
 

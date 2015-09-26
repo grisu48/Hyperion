@@ -94,7 +94,7 @@ public class NavigationBar extends Html implements
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		if (isEmpty())
 			return "";
 

@@ -15,6 +15,9 @@ public abstract class Html {
 	/** If this component is enabled */
 	protected boolean enabled = true;
 
+	/** ID of the component, if set */
+	protected String id = null;
+
 	/**
 	 * Generate the HTML contents for the element
 	 * 
@@ -31,12 +34,47 @@ public abstract class Html {
 		return buffer.toString();
 	}
 
-	abstract String generateHeader();
+	/**
+	 * Generate header of the component. The header is usually the HTML part
+	 * before the subcomponents
+	 * 
+	 * @return HTML of the header
+	 */
+	protected abstract String generateHeader();
 
-	String generateFooter() {
+	/**
+	 * Generate footer for the component The header is usually the HTML part
+	 * after the subcomponents
+	 * 
+	 * @return HTML of the footer
+	 */
+	protected String generateFooter() {
 		return "";
 	}
 
+	/**
+	 * @return ID of the component, if assigned. Otherwise null
+	 */
+	public String getId() {
+		return id;
+	}
+
+	/**
+	 * Set ID of the component
+	 * 
+	 * @param id
+	 *            ID of the HTML component. Null to delete
+	 */
+	public void setId(String id) {
+		this.id = id;
+	}
+
+	/**
+	 * Add a subcomponent
+	 * 
+	 * @param component
+	 *            to be added
+	 */
 	public void addComponent(final Html component) {
 		if (component == null)
 			return;
@@ -45,24 +83,52 @@ public abstract class Html {
 		}
 	}
 
+	/**
+	 * Creates and adds a table
+	 * 
+	 * @return the created table
+	 */
 	public Table addTable() {
 		final Table table = new Table();
 		addComponent(table);
 		return table;
 	}
 
+	/**
+	 * Create and add a form
+	 * 
+	 * @param action
+	 *            Action for the created form
+	 * @return the created form
+	 */
 	public Form addForm(final String action) {
 		final Form form = new Form(action);
 		addComponent(form);
 		return form;
 	}
 
+	/**
+	 * Create and add a form
+	 * 
+	 * @param action
+	 *            Action for the created form
+	 * @param method
+	 *            Method for the created form
+	 * @return the created form
+	 */
 	public Form addForm(final String action, final String method) {
 		final Form form = new Form(action, method);
 		addComponent(form);
 		return form;
 	}
 
+	/**
+	 * Removes the given component
+	 * 
+	 * @param component
+	 *            to be removed
+	 * @return true if found and removed, false if not found
+	 */
 	public boolean removeComponent(final Html component) {
 		if (component == null)
 			return false;
@@ -164,5 +230,17 @@ public abstract class Html {
 		final HorizontalLine line = new HorizontalLine();
 		addComponent(line);
 		return line;
+	}
+
+	/**
+	 * Adds the given HTML as {@link Plain} component
+	 * 
+	 * @param html
+	 *            to be added
+	 */
+	public Plain addPlain(final String html) {
+		final Plain plain = new Plain(html);
+		addComponent(plain);
+		return plain;
 	}
 }

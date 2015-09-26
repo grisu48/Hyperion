@@ -125,7 +125,7 @@ public class Table extends Html {
 	private int cellPadding = 0;
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		final StringBuffer buffer = new StringBuffer();
 		synchronized (rows) {
 			// final int columns = columnCount();

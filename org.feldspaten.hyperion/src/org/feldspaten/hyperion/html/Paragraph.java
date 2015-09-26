@@ -7,12 +7,12 @@ package org.feldspaten.hyperion.html;
 public class Paragraph extends Html {
 
 	@Override
-	String generateFooter() {
+	protected String generateFooter() {
 		return "</p>";
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		return "<p>";
 	}
 

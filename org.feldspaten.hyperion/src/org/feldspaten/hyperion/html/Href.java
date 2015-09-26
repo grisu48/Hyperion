@@ -69,7 +69,7 @@ public class Href extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		final StringBuffer buffer = new StringBuffer();
 		buffer.append("<a href=\"");
 		buffer.append(link);
@@ -86,7 +86,7 @@ public class Href extends Html {
 	}
 
 	@Override
-	String generateFooter() {
+	protected String generateFooter() {
 		return "</a>";
 	}
 }

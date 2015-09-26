@@ -17,7 +17,7 @@ public class Headline extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		return "<h" + level + ">" + title + "</h" + level + ">";
 	}
 

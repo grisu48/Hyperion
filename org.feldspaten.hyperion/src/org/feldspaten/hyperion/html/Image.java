@@ -28,7 +28,7 @@ public class Image extends Html {
 	}
 
 	@Override
-	String generateHeader() {
+	protected String generateHeader() {
 		final StringBuffer buffer = new StringBuffer();
 		buffer.append("<img src=\"" + source + "\"");
 		if (alternativeText != null && !alternativeText.isEmpty())
