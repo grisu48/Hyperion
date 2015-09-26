@@ -854,8 +854,8 @@ public abstract class HttpSessionServlet extends HttpServlet {
 	}
 
 	@Override
-	protected final void doDelete(HttpServletRequest req,
-			HttpServletResponse resp) throws ServletException, IOException {
+	protected void doDelete(HttpServletRequest req, HttpServletResponse resp)
+			throws ServletException, IOException {
 		processRequest(REQUEST_DELETE, req, resp);
 	}
 
@@ -863,37 +863,37 @@ public abstract class HttpSessionServlet extends HttpServlet {
 			final String redirectURL) throws IOException;
 
 	@Override
-	protected final void doOptions(HttpServletRequest req,
-			HttpServletResponse resp) throws ServletException, IOException {
+	protected void doOptions(HttpServletRequest req, HttpServletResponse resp)
+			throws ServletException, IOException {
 		processRequest(REQUEST_OPTIONS, req, resp);
 	}
 
 	@Override
-	protected final void doHead(HttpServletRequest req, HttpServletResponse resp)
+	protected void doHead(HttpServletRequest req, HttpServletResponse resp)
 			throws ServletException, IOException {
 		processRequest(REQUEST_HEAD, req, resp);
 	}
 
 	@Override
-	protected final void doPost(HttpServletRequest req, HttpServletResponse resp)
+	protected void doPost(HttpServletRequest req, HttpServletResponse resp)
 			throws ServletException, IOException {
 		processRequest(REQUEST_POST, req, resp);
 	}
 
 	@Override
-	protected final void doPut(HttpServletRequest req, HttpServletResponse resp)
+	protected void doPut(HttpServletRequest req, HttpServletResponse resp)
 			throws ServletException, IOException {
 		processRequest(REQUEST_PUT, req, resp);
 	}
 
 	@Override
-	protected final void doTrace(HttpServletRequest req,
-			HttpServletResponse resp) throws ServletException, IOException {
+	protected void doTrace(HttpServletRequest req, HttpServletResponse resp)
+			throws ServletException, IOException {
 		processRequest(REQUEST_TRACE, req, resp);
 	}
 
 	@Override
-	protected final void doGet(HttpServletRequest req, HttpServletResponse resp)
+	protected void doGet(HttpServletRequest req, HttpServletResponse resp)
 			throws ServletException, IOException {
 		processRequest(REQUEST_GET, req, resp);
 	}

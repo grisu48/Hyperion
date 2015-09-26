@@ -12,6 +12,9 @@ public class Page extends Html {
 	/** Meta fields */
 	private List<String> metas = new LinkedList<>();
 
+	/** Stylesheet file */
+	private String stylesheet = null;
+
 	@Override
 	String generateHeader() {
 		final StringBuffer buffer = new StringBuffer();
@@ -22,19 +25,24 @@ public class Page extends Html {
 		if (!title.isEmpty()) {
 			buffer.append("<title>");
 			buffer.append(title);
-			buffer.append("</title>");
+			buffer.append("</title>\n");
 		}
 		buffer.append("\n");
 		if (isAutoRefreshEnabled()) {
 			buffer.append("<meta http-equiv=\"refresh\" content=\""
-					+ autoRefreshDelay + "\">");
+					+ autoRefreshDelay + "\">\n");
 		}
 		// Add additional metas
 		for (final String meta : metas) {
-			buffer.append("<meta " + meta + " />");
+			buffer.append("<meta " + meta + " />\n");
 		}
 
-		buffer.append("</head>");
+		// Stylesheet, if applicable
+		if (stylesheet != null)
+			buffer.append("<link rel=\"stylesheet\" type=\"text/css\" href=\""
+					+ stylesheet + "\">\n");
+
+		buffer.append("</head>\n");
 		buffer.append("<body>");
 
 		return buffer.toString();
@@ -43,6 +51,10 @@ public class Page extends Html {
 	@Override
 	String generateFooter() {
 		return "</body>";
+	}
+
+	public void setStylesheetFile(final String url) {
+		this.stylesheet = url;
 	}
 
 	public String getTitle() {
