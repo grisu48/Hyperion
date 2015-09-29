@@ -1,17 +1,23 @@
 package org.feldspaten.hyperion.html;
 
+import java.util.LinkedList;
+import java.util.List;
+
 /**
  * HTML Ordered list
  *
  */
 public class OrderedList extends Html {
 
+	/** List items */
+	private List<Html> listItems = new LinkedList<>();
+
 	@Override
 	protected String generateHeader() {
 		final StringBuffer buffer = new StringBuffer();
 		buffer.append("<ol>");
 
-		for (final Html html : subcomponents)
+		for (final Html html : listItems)
 			buffer.append("<li>" + html.generate() + "</li>");
 
 		return buffer.toString();
@@ -39,7 +45,7 @@ public class OrderedList extends Html {
 	 *            to be added
 	 */
 	public void addListItem(final Html item) {
-		this.subcomponents.add(item);
+		this.listItems.add(item);
 	}
 
 }
