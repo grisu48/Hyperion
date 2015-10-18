@@ -8,29 +8,41 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
-import java.util.LinkedList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class MySQL {
 
+	/* Connection parameters */
+
+	/** Hostname of the database */
 	private String db_hostname;
-	private String db_username;
-	private String db_password;
+	/** Port of the database */
+	private int db_port;
+	/** Database name for the connection */
 	private String db_database;
-	private int db_port = DEFAULT_PORT;
+	/** Username for the database */
+	private String db_username;
+	/** Password for the connection */
+	private String db_password;
 
 	/** Default port for MySQL connections */
 	public static final int DEFAULT_PORT = 3306;
 
-	/** JDBC connection */
-	private static java.sql.Connection conn = null;
+	/** Default names encoding used for a statement */
+	private String defaultEncoding = "utf8";
+	/** Default timezone for a statement. Adapt to your needs */
+	private String timezone = "+01:00";
+	/** Offset in seconds for the timezone in seconds */
+	private long timezoneOffset = 60L * 60L;
 
-	/**
-	 * {@link SimpleDateFormat} for formatting date and times to MySQL date
-	 * instances
-	 */
+	/** JDBC connection */
+	private java.sql.Connection conn = null;
+
+	/** {@link SimpleDateFormat} for formatting dates to MySQL date instances */
 	static final SimpleDateFormat sqlDateTimeFormatter = new SimpleDateFormat(
 			"yyyy-MM-dd HH:mm:ss");
 	/** {@link SimpleDateFormat} for formatting dates to MySQL date instances */
@@ -39,6 +51,492 @@ public class MySQL {
 
 	/** Closed flag. After closing no further connections are established */
 	private static boolean closed = false;
+
+	/** Implementation of Map to provide easier access to the values map */
+	public static class ValuesMap extends HashMap<String, String> implements
+			Map<String, String> {
+		/** Serialisation ID */
+		private static final long serialVersionUID = -3241025828184612599L;
+
+		@Override
+		public String put(String key, String value) {
+			if (value == null)
+				value = "";
+			else
+				value = MySQL.sqlSafeString(value);
+			return super.put(key, value);
+		}
+
+		public String put(String key, long value) {
+			return super.put(key, Long.toString(value));
+		}
+
+		public String put(String key, float value) {
+			return super.put(key, Float.toString(value));
+		}
+
+	}
+
+	/**
+	 * Helper class for creating queries
+	 * 
+	 * @author phoenix
+	 *
+	 */
+	public static class Query {
+		/** Underlying statement */
+		private final Statement stmt;
+		/** {@link ResultSet} when quering data */
+		protected ResultSet rs = null;
+
+		/** Set offset for this query */
+		private long offset = 0;
+		/** Limit for the resulting rows */
+		private long limit = 100;
+		/** Name of the table the query operates on */
+		private String tablename;
+		/** Ordering */
+		private String order;
+		/** True if ascending order, false if descending order */
+		private boolean orderAscending;
+		/** Created query string */
+		private String query = null;
+		/** Enclose query in transaction */
+		private boolean transaction = false;
+
+		/** Where clauses */
+		private final List<String> whereClauses = new ArrayList<>(10);
+		/** Connector of the where clauses */
+		private String whereClauseConnector = "AND";
+
+		/** Optional ON DUPLICATE KEY statement for insert queries */
+		private String insertOnDuplicateKeyStatement = null;
+
+		public Query(final MySQL mysql) throws SQLException {
+			this.stmt = mysql.createStatement();
+		}
+
+		public String getLastQuery() {
+			return query;
+		}
+
+		public String getOrder() {
+			return order;
+		}
+
+		public void setOrder(String order) {
+			this.order = order;
+		}
+
+		public boolean isOrderAscending() {
+			return orderAscending;
+		}
+
+		public void setOrderAscending(boolean orderAscending) {
+			this.orderAscending = orderAscending;
+		}
+
+		public String getTablename() {
+			return tablename;
+		}
+
+		public void setTablename(String tablename) {
+			this.tablename = tablename;
+		}
+
+		public long getOffset() {
+			return offset;
+		}
+
+		public void setOffset(long offset) {
+			this.offset = offset;
+		}
+
+		public long getLimit() {
+			return limit;
+		}
+
+		public void setLimit(long limit) {
+			this.limit = limit;
+		}
+
+		public String getWhereClause() {
+			synchronized (whereClauses) {
+				if (whereClauses.isEmpty())
+					return "";
+
+				final StringBuffer buffer = new StringBuffer();
+				boolean first = true;
+				final String connector = " " + this.whereClauseConnector + " ";
+				for (final String clause : whereClauses) {
+					if (first)
+						first = false;
+					else
+						buffer.append(connector);
+					buffer.append('(');
+					buffer.append(clause);
+					buffer.append(')');
+				}
+				return buffer.toString();
+			}
+
+		}
+
+		/**
+		 * Set the connecto between where clauses. Acceptable connectors are
+		 * <b>AND</b> or <b>OR</b>
+		 * 
+		 * @param connector
+		 *            Connector between where clauses
+		 */
+		public void setWhereClauseConnector(String connector) {
+			connector = connector.trim().toUpperCase();
+			if (connector.equals("AND"))
+				this.whereClauseConnector = "AND";
+			else if (connector.equals("OR"))
+				this.whereClauseConnector = "OR";
+			else
+				throw new IllegalArgumentException(
+						"Illegal where clause connector: " + connector);
+		}
+
+		/**
+		 * Replaces ALL where clauses by this one clause
+		 * 
+		 * @param clause
+		 *            to be set
+		 */
+		public void setWhereClause(String clause) {
+			synchronized (whereClauses) {
+				this.whereClauses.clear();
+				if (clause == null || clause.isEmpty())
+					return;
+				else
+					this.whereClauses.add(clause);
+			}
+		}
+
+		public void addWhereClause(final String clause) {
+			if (clause == null || clause.isEmpty())
+				return;
+
+			synchronized (whereClauses) {
+				this.whereClauses.add(clause);
+			}
+		}
+
+		public void clearWhereClauses() {
+			synchronized (whereClauses) {
+				this.whereClauses.clear();
+			}
+		}
+
+		public synchronized void cleanup() throws SQLException {
+			if (rs != null)
+				rs.close();
+			rs = null;
+		}
+
+		protected synchronized ResultSet executeQuery(final String sql)
+				throws SQLException {
+			cleanup();
+			this.query = sql;
+			this.rs = stmt.executeQuery(sql);
+			return this.rs;
+		}
+
+		protected synchronized ResultSet selectQuery() throws SQLException {
+			return this.selectQuery("*");
+		}
+
+		protected synchronized ResultSet selectQuery(final String rows)
+				throws SQLException {
+			// Generate SELECT query
+			final StringBuffer query = new StringBuffer();
+			query.append("SELECT " + rows + " FROM `");
+			query.append(tablename);
+			final String whereClause = getWhereClause();
+			if (whereClause != null && whereClause.length() > 0) {
+				query.append("` WHERE ");
+				query.append(whereClause);
+			} else
+				query.append('`');
+			if (order != null && order.length() > 0) {
+				query.append(" ORDER BY ");
+				query.append(MySQL.sqlSafeString(order));
+				if (isOrderAscending())
+					query.append(" ASC ");
+				else
+					query.append(" DESC ");
+			}
+			if (limit > 0) {
+				query.append(" LIMIT ");
+				query.append(limit);
+				if (offset > 0) {
+					query.append(" OFFSET ");
+					query.append(offset);
+				}
+			}
+			query.append(';');
+			return executeQuery(query.toString());
+		}
+
+		public synchronized ResultSet getResultSet() {
+			return this.rs;
+		}
+
+		public synchronized void close() {
+			if (transaction)
+				try {
+					endTransaction();
+				} catch (SQLException e1) {
+				}
+			try {
+
+				cleanup();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+			try {
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
+
+		public synchronized boolean next() throws SQLException {
+			if (rs == null)
+				return false;
+			return rs.next();
+		}
+
+		public synchronized boolean execute(String sql) throws SQLException {
+			cleanup();
+			this.query = sql;
+			return stmt.execute(sql);
+		}
+
+		public synchronized int executeUpdate(String sql) throws SQLException {
+			cleanup();
+			this.query = sql;
+			return stmt.executeUpdate(sql);
+		}
+
+		public synchronized ResultSetMetaData getResultSetMetaData()
+				throws SQLException {
+			if (rs == null)
+				throw new IllegalStateException(
+						"Cannot get ResultSetMetData when no ResultSet is available");
+			return rs.getMetaData();
+		}
+
+		public synchronized int insert(Map<String, String> values)
+				throws SQLException {
+			return this.insertStatement(this.tablename, values, false);
+		}
+
+		public synchronized int insert(String tablename,
+				Map<String, String> values) throws SQLException {
+			return this.insertStatement(this.tablename, values, false);
+		}
+
+		public synchronized int insertIgnore(Map<String, String> values)
+				throws SQLException {
+			return this.insertStatement(this.tablename, values, true);
+		}
+
+		public synchronized int insertIgnore(String tablename,
+				Map<String, String> values) throws SQLException {
+			return this.insertStatement(this.tablename, values, true);
+		}
+
+		protected synchronized int insertStatement(String tablename,
+				Map<String, String> values, final boolean ignore)
+				throws SQLException {
+			if (tablename.isEmpty() || values.isEmpty())
+				return 0;
+
+			final StringBuffer buffer = new StringBuffer();
+			if (ignore)
+				buffer.append("INSERT IGNORE INTO `");
+			else
+				buffer.append("INSERT INTO `");
+			buffer.append(tablename);
+			buffer.append("` (");
+			{
+				final StringBuffer valuesString = new StringBuffer();
+				boolean first = true;
+				for (final String key : values.keySet()) {
+					if (first)
+						first = false;
+					else {
+						buffer.append(", ");
+						valuesString.append(", ");
+					}
+
+					buffer.append('`');
+					buffer.append(key);
+					buffer.append('`');
+					valuesString.append("'");
+					valuesString.append(values.get(key));
+					valuesString.append("'");
+				}
+				buffer.append(") VALUES (");
+				buffer.append(valuesString.toString());
+			}
+
+			if (this.insertOnDuplicateKeyStatement != null) {
+				buffer.append("ON DUPLICATE KEY ");
+				buffer.append(this.insertOnDuplicateKeyStatement);
+			}
+
+			buffer.append(");");
+
+			return this.executeUpdate(buffer.toString());
+		}
+
+		public void setOnDuplicateKeyStatement(final String statement) {
+			this.insertOnDuplicateKeyStatement = statement;
+		}
+
+		public synchronized int update(Map<String, String> values)
+				throws SQLException {
+			return this.update(this.tablename, values);
+		}
+
+		public synchronized int update(String tablename,
+				Map<String, String> values) throws SQLException {
+			if (tablename.isEmpty() || values.isEmpty())
+				return 0;
+
+			final StringBuffer buffer = new StringBuffer();
+			buffer.append("UPDATE `");
+			buffer.append(tablename);
+			buffer.append("` SET ");
+
+			boolean first = true;
+			for (final String key : values.keySet()) {
+				if (first)
+					first = false;
+				else {
+					buffer.append(", ");
+				}
+
+				buffer.append('`');
+				buffer.append(key);
+				buffer.append("` = '");
+				buffer.append(sqlSafeString(values.get(key)));
+				buffer.append("'");
+			}
+
+			buffer.append(" WHERE " + getWhereClause());
+
+			buffer.append(";");
+
+			return this.executeUpdate(buffer.toString());
+		}
+
+		public synchronized void insertOrUpdate(ValuesMap values)
+				throws SQLException {
+			this.insertOrUpdate(this.tablename, values);
+		}
+
+		public synchronized void insertOrUpdate(String tableName,
+				ValuesMap values) throws SQLException {
+			if (tablename.isEmpty() || values.isEmpty())
+				return;
+
+			final StringBuffer buffer = new StringBuffer();
+			buffer.append("INSERT INTO `");
+			buffer.append(tablename);
+			buffer.append("` (");
+			{
+				final StringBuffer valuesString = new StringBuffer();
+				boolean first = true;
+				for (final String key : values.keySet()) {
+					if (first)
+						first = false;
+					else {
+						buffer.append(", ");
+						valuesString.append(", ");
+					}
+
+					buffer.append('`');
+					buffer.append(key);
+					buffer.append('`');
+					valuesString.append("'");
+					valuesString.append(values.get(key));
+					valuesString.append("'");
+				}
+				buffer.append(") VALUES (");
+				buffer.append(valuesString.toString());
+			}
+			buffer.append(") ON DUPLICATE KEY UPDATE ");
+			{
+				boolean first = true;
+				for (final String key : values.keySet()) {
+					if (first)
+						first = false;
+					else
+						buffer.append(", ");
+					buffer.append('`');
+					buffer.append(key);
+					buffer.append("` = '");
+					buffer.append(values.get(key));
+					buffer.append("'");
+				}
+			}
+
+			this.executeUpdate(buffer.toString());
+		}
+
+		public synchronized void startTransaction() throws SQLException {
+			if (transaction)
+				return;
+			else {
+				transaction = true;
+				this.execute("START TRANSACTION;");
+			}
+		}
+
+		public synchronized void endTransaction() throws SQLException {
+			if (!transaction)
+				return;
+			else {
+				this.execute("COMMIT;");
+				transaction = false;
+			}
+		}
+
+		/**
+		 * Delete from the table with the given where clause
+		 */
+		public synchronized void delete() throws SQLException {
+			final StringBuffer buffer = new StringBuffer();
+			buffer.append("DELETE FROM `");
+			buffer.append(tablename);
+			buffer.append("`");
+			final String whereClause = getWhereClause();
+			if (whereClause.length() > 0) {
+				buffer.append(" WHERE ");
+				buffer.append(whereClause);
+			}
+			buffer.append(';');
+			execute(buffer.toString());
+		}
+
+		/**
+		 * Clear the whole table
+		 */
+		public synchronized void clear() throws SQLException {
+			final StringBuffer buffer = new StringBuffer();
+			buffer.append("DELETE FROM `");
+			buffer.append(tablename);
+			buffer.append("`");
+			buffer.append(';');
+			execute(buffer.toString());
+		}
+	}
 
 	/**
 	 * Static class constructor
@@ -65,507 +563,56 @@ public class MySQL {
 
 	}
 
-	/**
-	 * Helper class for executing nearly all types of queries
-	 * 
-	 * @author phoenix
-	 *
-	 */
-	public class Query {
-		/** Underlying statement for the query */
-		protected final Statement stmt;
-		/** Underlying {@link ResultSet} for returning results */
-		protected ResultSet rs = null;
+	public MySQL(String hostname, int port, String database, String username,
+			String password) {
+		super();
+		this.db_hostname = hostname;
+		this.db_port = port;
+		this.db_database = database;
+		this.db_username = username;
+		this.db_password = password;
+	}
 
-		/** Offset of the result set */
-		private int offset = 0;
-		/** Maximum number of result sets */
-		private int limit = 100;
-		/** The where clasuses */
-		private List<String> whereClauses = new LinkedList<>();
-		/** Name of the table the query belongs to */
-		private String tablename;
-		/** Order by */
-		private String order;
-		/** Ascending or descending order */
-		private boolean orderAscending;
-		/** SQL query that is executed last */
-		private String query = null;
-		/** If the query should be enclosed as transaction */
-		private boolean transaction = false;
-		/** Selection arguments for SELECT queries */
-		private List<String> selectionArguments = new LinkedList<>();
+	public MySQL(String hostname, String database, String username,
+			String password) {
+		this(hostname, DEFAULT_PORT, database, username, password);
+	}
 
-		/**
-		 * Create new Query instance
-		 * 
-		 * @throws SQLException
-		 *             If thrown while creating a new statement
-		 */
-		protected Query() throws SQLException {
-			this.stmt = createStatement();
-		}
+	public String getDefaultEncoding() {
+		return defaultEncoding;
+	}
 
-		/**
-		 * @return the last executed query
-		 */
-		public String getLastQuery() {
-			return query;
-		}
+	public void setDefaultEncoding(String defaultEncoding) {
+		this.defaultEncoding = defaultEncoding;
+	}
 
-		/**
-		 * @return the order of the query, if set
-		 */
-		public String getOrder() {
-			return order;
-		}
+	public String getTimezone() {
+		return timezone;
+	}
 
-		/**
-		 * Set the order by directive
-		 * 
-		 * @param order
-		 *            to be set
-		 */
-		public void setOrder(String order) {
-			this.order = order;
-		}
+	public void setTimezone(String timezone) {
+		this.timezone = timezone;
+	}
 
-		/**
-		 * @return true if ascending order is set
-		 */
-		public boolean isOrderAscending() {
-			return orderAscending;
-		}
+	public long getTimezoneOffset() {
+		return timezoneOffset;
+	}
 
-		/**
-		 * Set ascending or descending order
-		 * 
-		 * @param orderAscending
-		 *            true if ascending, false if descending order
-		 */
-		public void setOrderAscending(boolean orderAscending) {
-			this.orderAscending = orderAscending;
-		}
-
-		/**
-		 * Set ascending order
-		 */
-		public void setOrderAscending() {
-			this.orderAscending = true;
-		}
-
-		/**
-		 * Set descending order
-		 */
-		public void setOrderDecending() {
-			this.orderAscending = false;
-		}
-
-		/**
-		 * 
-		 * @return the name of the table the query belongs to
-		 */
-		public String getTablename() {
-			return tablename;
-		}
-
-		/**
-		 * Set the name of the table the query is executed on
-		 * 
-		 * @param tablename
-		 *            name of the table
-		 */
-		public void setTablename(String tablename) {
-			this.tablename = tablename;
-		}
-
-		/**
-		 * @return offset of the result set
-		 */
-		public int getOffset() {
-			return offset;
-		}
-
-		/**
-		 * Set the offset of the resulting set
-		 * 
-		 * @param offset
-		 *            to be set. Must be larger or equal zero, otherwise the
-		 *            query will fail
-		 */
-		public void setOffset(int offset) {
-			this.offset = offset;
-		}
-
-		/**
-		 * @return the maximum number of elements the query returns
-		 */
-		public int getLimit() {
-			return limit;
-		}
-
-		/**
-		 * Set the maximum number of results the query returns
-		 * 
-		 * @param limit
-		 *            to be set
-		 */
-		public void setLimit(int limit) {
-			this.limit = limit;
-		}
-
-		/**
-		 * @return Selection arguments for SELECT queries
-		 */
-		public String getSelectionArguments() {
-			if (selectionArguments == null || selectionArguments.isEmpty())
-				return "*";
-			else {
-				final StringBuffer buffer = new StringBuffer();
-				boolean first = true;
-
-				for (final String arg : selectionArguments) {
-					if (first)
-						first = false;
-					else
-						buffer.append(',');
-					buffer.append(arg);
-				}
-
-				return buffer.toString();
-			}
-		}
-
-		/**
-		 * Clear all selection arguments and adds the given argument to the
-		 * list. If empty or null, then "*" is added
-		 * 
-		 * @param arg
-		 *            to be set as selection argument
-		 */
-		public void setSelectionArgument(String arg) {
-			if (arg == null || arg.isEmpty())
-				arg = "*";
-			this.selectionArguments.clear();
-			this.selectionArguments.add(arg);
-		}
-
-		/**
-		 * Removes all selection arguments
-		 */
-		public void clearSelectionArguments() {
-			this.selectionArguments.clear();
-		}
-
-		/**
-		 * Adds the given selection argument for SELECT queries. If null or
-		 * empty it is ignred
-		 * 
-		 * @param arg
-		 *            to be added
-		 */
-		public void addSelectionArgument(final String arg) {
-			if (arg == null || arg.isEmpty())
-				return;
-			this.selectionArguments.add(arg);
-		}
-
-		/**
-		 * @return mergerd where clause, if set
-		 */
-		public String getWhereClause() {
-			if (whereClauses.isEmpty())
-				return "";
-			final StringBuffer whereClause = new StringBuffer();
-			boolean first = true;
-			for (final String clause : whereClauses) {
-				if (first)
-					first = false;
-				else
-					whereClause.append(" AND ");
-				whereClause.append(clause);
-			}
-			return whereClause.toString();
-		}
-
-		/**
-		 * Set the where clause of the statement
-		 * 
-		 * @param whereClause
-		 *            to be set in SQL
-		 */
-		public void setWhereClause(String whereClause) {
-			if (whereClause == null)
-				whereClause = "";
-			this.whereClauses.clear();
-			this.whereClauses.add(whereClause);
-		}
-
-		public void addWhereClause(final String whereClause) {
-			if (whereClause == null || whereClause.isEmpty())
-				return;
-			this.whereClauses.add(whereClause);
-		}
-
-		/**
-		 * Clean query's result set
-		 * 
-		 * @throws SQLException
-		 *             If thrown while cleaning up
-		 */
-		public synchronized void cleanup() throws SQLException {
-			if (rs != null)
-				rs.close();
-			rs = null;
-		}
-
-		/**
-		 * Execute the given query
-		 * 
-		 * @param sql
-		 *            to be executed
-		 * @return Resulting {@link ResultSet} instance of the query
-		 * @throws SQLException
-		 *             If thrown while the query is executed
-		 */
-		public synchronized ResultSet executeQuery(final String sql)
-				throws SQLException {
-			cleanup();
-			this.query = sql;
-			this.rs = stmt.executeQuery(sql);
-			return this.rs;
-		}
-
-		/**
-		 * Executes a select query with the parameters of this instance
-		 * 
-		 * @return Resulting {@link ResultSet} if executed successfully
-		 * @throws SQLException
-		 *             If the query fails to execute
-		 */
-		protected synchronized ResultSet selectQuery() throws SQLException {
-			// Generate SELECT query
-			final StringBuffer query = new StringBuffer();
-			query.append("SELECT " + getSelectionArguments() + " FROM ");
-			query.append(tablename);
-			if (whereClauses.size() > 0) {
-				query.append(" WHERE ");
-				query.append(getWhereClause());
-			}
-			if (order != null && order.length() > 0) {
-				query.append(" ORDER BY ");
-				query.append(sqlSafeString(order));
-				if (isOrderAscending())
-					query.append(" ASC ");
-				else
-					query.append(" DESC ");
-			}
-			if (limit > 0) {
-				query.append(" LIMIT ");
-				query.append(limit);
-				if (offset > 0) {
-					query.append(" OFFSET ");
-					query.append(offset);
-				}
-			}
-			query.append(';');
-			return executeQuery(query.toString());
-		}
-
-		/**
-		 * @return the {@link ResultSet} of the query or null, if not available
-		 */
-		public synchronized ResultSet getResultSet() {
-			return this.rs;
-		}
-
-		/**
-		 * Ends the transaction and closes the query. This call must be always
-		 * called otherwise a <b>memory leak</b> is possible
-		 */
-		public synchronized void close() {
-			if (transaction)
-				try {
-					endTransaction();
-				} catch (SQLException e1) {
-				}
-			try {
-
-				cleanup();
-			} catch (SQLException e) {
-				e.printStackTrace();
-			}
-			try {
-				stmt.close();
-			} catch (SQLException e) {
-				e.printStackTrace();
-			}
-		}
-
-		/**
-		 * Select next row in the resultset
-		 * 
-		 * @return true if there is a next row, otherwise false
-		 * @throws SQLException
-		 *             If occurring while reading from the {@link ResultSet}
-		 */
-		public synchronized boolean next() throws SQLException {
-			if (rs == null)
-				return false;
-			return rs.next();
-		}
-
-		/**
-		 * Execute the given statement
-		 * 
-		 * @param sql
-		 *            SQL statement to be executed
-		 * @return true if the statement executes successfully
-		 * @throws SQLException
-		 *             If the execution fails
-		 */
-		public synchronized boolean execute(String sql) throws SQLException {
-			cleanup();
-			this.query = sql;
-			return stmt.execute(sql);
-		}
-
-		/**
-		 * Execute the given <B<UPDATE or DELETE</b> statement
-		 * 
-		 * @param sql
-		 *            SQL statement to be executed
-		 * @return number of affected rows
-		 * @throws SQLException
-		 *             If the execution fails
-		 */
-		public synchronized int executeUpdate(String sql) throws SQLException {
-			cleanup();
-			this.query = sql;
-			return stmt.executeUpdate(sql);
-		}
-
-		/**
-		 * Return the meta-data of the {@link ResultSet}
-		 * 
-		 * @return {@link ResultSetMetaData} of the query
-		 * @throws SQLException
-		 *             If thrown while querying
-		 */
-		public synchronized ResultSetMetaData getResultSetMetaData()
-				throws SQLException {
-			if (rs == null)
-				throw new IllegalStateException(
-						"Cannot get ResultSetMetData when no ResultSet is available");
-			return rs.getMetaData();
-		}
-
-		/**
-		 * Inserts the given set of values into the given table
-		 * 
-		 * @param tablename
-		 *            Name of the table the values are inserted
-		 * @param values
-		 *            {@link Map} with the <b>name</b> (Key) and <b>value</b>
-		 *            (Value) for the insert statement
-		 * @return number of affected rows of the statement. Should be one if
-		 *         the insert is successfull
-		 * @throws SQLException
-		 *             If the insert statement fails
-		 */
-		public synchronized int insert(String tablename,
-				Map<String, String> values) throws SQLException {
-			if (tablename.isEmpty() || values.isEmpty())
-				return 0;
-
-			final StringBuffer buffer = new StringBuffer();
-			buffer.append("INSERT INTO `");
-			buffer.append(tablename);
-			buffer.append("` (");
-			{
-				final StringBuffer valuesString = new StringBuffer();
-				boolean first = true;
-				for (final String key : values.keySet()) {
-					if (first)
-						first = false;
-					else {
-						buffer.append(", ");
-						valuesString.append(", ");
-					}
-
-					buffer.append('`');
-					buffer.append(key);
-					buffer.append('`');
-					valuesString.append('\'');
-					valuesString.append(values.get(key));
-					valuesString.append('\'');
-				}
-				buffer.append(") VALUES (");
-				buffer.append(valuesString.toString());
-			}
-			buffer.append(");");
-
-			return this.executeUpdate(buffer.toString());
-		}
-
-		/**
-		 * Enclose this statement in a transaction
-		 * 
-		 * @throws SQLException
-		 *             Thrown if the Query fails to start a transaction
-		 */
-		public synchronized void startTransaction() throws SQLException {
-			if (transaction)
-				return;
-			else {
-				transaction = true;
-				this.execute("START TRANSACTION;");
-			}
-		}
-
-		/**
-		 * Ends a started transaction
-		 * 
-		 * @throws SQLException
-		 *             Thrown if the transaction fails
-		 */
-		public synchronized void endTransaction() throws SQLException {
-			if (!transaction)
-				return;
-			else {
-				this.execute("COMMIT;");
-				transaction = false;
-			}
-		}
+	public void setTimezoneOffset(long timezoneOffset) {
+		this.timezoneOffset = timezoneOffset;
 	}
 
 	/**
-	 * Instanciate a new MySQL connection
+	 * Initialized the connection with the given parameters
 	 * 
-	 * @param hostname
-	 *            Remote host
-	 * @param port
-	 *            port
-	 * @param username
-	 *            Username for login
-	 * @param password
-	 *            Password for login
-	 * @param database
-	 *            Database to connect
 	 * @throws SQLException
-	 *             Thrown if the connection failed
+	 *             Thrown if the initial connection fails
 	 */
-	public MySQL(final String hostname, int port, final String username,
-			final String password, final String database) throws SQLException {
-		this.db_hostname = hostname;
-		this.db_port = port;
-		this.db_username = username;
-		this.db_password = password;
-		this.db_database = database;
+	public void initialize() throws SQLException {
 		this.reconnectThrowsException();
 	}
 
-	protected void execSql(final String sql) throws SQLException {
+	public void execSql(final String sql) throws SQLException {
 		final Statement stmt = createStatement();
 		try {
 			stmt.execute(sql);
@@ -583,7 +630,7 @@ public class MySQL {
 	 * @throws SQLException
 	 *             Thrown if occurring on database
 	 */
-	protected void execSql(final String[] sqls) throws SQLException {
+	public void execSql(final String[] sqls) throws SQLException {
 		execSql(sqls, false);
 	}
 
@@ -598,7 +645,7 @@ public class MySQL {
 	 * @throws SQLException
 	 *             Thrown if occurring on database
 	 */
-	protected void execSql(final String[] sqls, final boolean transaction)
+	public void execSql(final String[] sqls, final boolean transaction)
 			throws SQLException {
 		final Statement stmt = createStatement();
 		try {
@@ -614,11 +661,11 @@ public class MySQL {
 		}
 	}
 
-	protected void executeSql(final String sql) throws SQLException {
+	public void executeSql(final String sql) throws SQLException {
 		execSql(sql);
 	}
 
-	protected void executeUpdate(final String sql) throws SQLException {
+	public void executeUpdate(final String sql) throws SQLException {
 		final Statement stmt = createStatement();
 		try {
 			stmt.executeUpdate(sql);
@@ -628,10 +675,11 @@ public class MySQL {
 	}
 
 	/**
-	 * Reconnect database. Usefull, if you changed the database connection
-	 * parameters, i.e. hostname, port, database, username and password
+	 * Connects or reconnects the database. Useful, if you changed the database
+	 * connection parameters, i.e. hostname, port, database, username and
+	 * password
 	 */
-	public synchronized void reconnect() {
+	public synchronized void connect() {
 		try {
 			if (conn != null)
 				conn.close();
@@ -654,18 +702,10 @@ public class MySQL {
 			if (conn != null && conn.isValid(timeout))
 				return true;
 		} catch (SQLException e) {
-			// Consider as broken connection
+			// Consider as a broken connection.
 		}
 
-		final String url;
-		{
-			String url_ = "jdbc:mysql://" + db_hostname + ":" + db_port + "/"
-					+ db_database + "?user=" + db_username
-					+ "&zeroDateTimeBehavior=convertToNull";
-			if (db_password != null && db_password.length() > 0)
-				url_ += "&password=" + db_password;
-			url = url_;
-		}
+		final String url = createJDBCAddress();
 
 		java.sql.Connection con = conn;
 		try {
@@ -690,6 +730,18 @@ public class MySQL {
 					+ e.getLocalizedMessage());
 			return false;
 		}
+	}
+
+	/**
+	 * @return created JDBC address string
+	 */
+	protected String createJDBCAddress() {
+		String url_ = "jdbc:mysql://" + db_hostname + ":" + db_port + "/"
+				+ db_database + "?user=" + db_username
+				+ "&zeroDateTimeBehavior=convertToNull&characterEncoding=utf8";
+		if (db_password != null && db_password.length() > 0)
+			url_ += "&password=" + db_password;
+		return url_;
 	}
 
 	/**
@@ -731,19 +783,7 @@ public class MySQL {
 	 *            to be handled
 	 * @return SQL-Safe string
 	 */
-	protected static String sqlSafeString(final String string) {
-		return string.replace("'", "\\'");
-	}
-
-	/**
-	 * Make a string SQL-Safe, i.e. replace all <i>'</i> with <i>\'</i> and
-	 * enclose it with '. Multiple calls do not alter the string
-	 * 
-	 * @param string
-	 *            to be handled
-	 * @return SQL-Safe string
-	 */
-	protected static String escapeString(final String string) {
+	public static String sqlSafeString(final String string) {
 		final StringBuffer buffer = new StringBuffer();
 		boolean escaped = false;
 		for (final char ch : string.toCharArray()) {
@@ -795,11 +835,14 @@ public class MySQL {
 	 * @throws SQLException
 	 *             Packet {@link SQLException} if occurring
 	 */
-	protected synchronized Statement createStatement() throws SQLException {
+	public synchronized Statement createStatement() throws SQLException {
 		checkConnection();
 		if (conn == null)
 			throw new SQLException("Error setting up SQL connection");
-		return conn.createStatement();
+		final Statement statement = conn.createStatement();
+		statement.execute("SET NAMES " + defaultEncoding + ";");
+		statement.execute("SET time_zone = '" + timezone + "';");
+		return statement;
 
 	}
 
@@ -810,12 +853,15 @@ public class MySQL {
 	 * @throws SQLException
 	 *             Packet {@link SQLException} if occurring
 	 */
-	protected PreparedStatement createPreparedStatement(final String sql)
+	public PreparedStatement createPreparedStatement(final String sql)
 			throws SQLException {
 		checkConnection();
 		if (conn == null)
 			throw new SQLException("Error setting up SQL connection");
-		return conn.prepareStatement(sql);
+		final PreparedStatement statement = conn.prepareStatement(sql);
+		statement.execute("SET NAMES " + defaultEncoding + ";");
+		statement.execute("SET time_zone = '" + timezone + "';");
+		return statement;
 	}
 
 	/**
@@ -844,7 +890,7 @@ public class MySQL {
 	public String getDBMSVersion() throws SQLException {
 
 		final String query = "SELECT version();";
-		final java.sql.Statement stmt = createStatement();
+		final java.sql.Statement stmt = conn.createStatement();
 
 		try {
 
@@ -864,16 +910,25 @@ public class MySQL {
 
 	}
 
-	static Date getSqlDate(final ResultSet rs, final String columnName)
+	public Date getSqlDate(final ResultSet rs, final String columnName)
 			throws SQLException {
 		final Timestamp timestamp = rs.getTimestamp(columnName);
 		if (timestamp == null)
 			return new Date();
-		else
-			return timestamp;
+		else {
+			final long time = timestamp.getTime() + timezoneOffset;
+			return new Date(time);
+		}
 	}
 
-	Query createQuery() throws SQLException {
-		return new Query();
+	/**
+	 * Espaced (including "'" characters) safe SQL string
+	 * 
+	 * @param string
+	 *            to be processed
+	 * @return
+	 */
+	public String escapeString(String string) {
+		return "'" + sqlSafeString(string) + "'";
 	}
 }
