@@ -27,9 +27,15 @@ public class MySQL {
 	/** JDBC connection */
 	private static java.sql.Connection conn = null;
 
-	/** {@link SimpleDateFormat} for formatting dates to MySQL date instances */
-	private static final SimpleDateFormat sqlDateFormatter = new SimpleDateFormat(
+	/**
+	 * {@link SimpleDateFormat} for formatting date and times to MySQL date
+	 * instances
+	 */
+	static final SimpleDateFormat sqlDateTimeFormatter = new SimpleDateFormat(
 			"yyyy-MM-dd HH:mm:ss");
+	/** {@link SimpleDateFormat} for formatting dates to MySQL date instances */
+	static final SimpleDateFormat sqlDateFormatter = new SimpleDateFormat(
+			"yyyy-MM-dd");
 
 	/** Closed flag. After closing no further connections are established */
 	private static boolean closed = false;
@@ -731,17 +737,52 @@ public class MySQL {
 
 	/**
 	 * Make a string SQL-Safe, i.e. replace all <i>'</i> with <i>\'</i> and
-	 * enclose it with '
+	 * enclose it with '. Multiple calls do not alter the string
 	 * 
 	 * @param string
 	 *            to be handled
 	 * @return SQL-Safe string
 	 */
 	protected static String escapeString(final String string) {
-		return "'" + string.replace("'", "\\'") + "'";
+		final StringBuffer buffer = new StringBuffer();
+		boolean escaped = false;
+		for (final char ch : string.toCharArray()) {
+			if (ch == '\\')
+				escaped = true;
+			else {
+				if (ch == '\'') {
+					if (!escaped)
+						buffer.append('\\');
+				}
+				escaped = false;
+			}
+			buffer.append(ch);
+		}
+
+		return buffer.toString();
 	}
 
-	protected static String sqlDate(final Date date) {
+	/**
+	 * Create SQL date out of ad {@link Date} instance
+	 * 
+	 * @param date
+	 *            to be converted
+	 * @return SQL date string
+	 */
+	public static String sqlDateTime(final Date date) {
+		if (date == null)
+			return "NULL";
+		return sqlDateTimeFormatter.format(date);
+	}
+
+	/**
+	 * Create SQL date out of ad {@link Date} instance
+	 * 
+	 * @param date
+	 *            to be converted
+	 * @return SQL date string
+	 */
+	public static String sqlDate(final Date date) {
 		if (date == null)
 			return "NULL";
 		return sqlDateFormatter.format(date);
