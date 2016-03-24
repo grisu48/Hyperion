@@ -59,11 +59,35 @@ public class MySQL {
 		private static final long serialVersionUID = -3241025828184612599L;
 
 		@Override
+		/**
+		 * Escape string and insert it
+		 */
 		public String put(String key, String value) {
 			if (value == null)
-				value = "";
+				value = "''";
 			else
-				value = MySQL.sqlSafeString(value);
+				value = "'" + MySQL.sqlSafeString(value) + "'";
+			return super.put(key, value);
+		}
+
+		/**
+		 * Insert into the values map
+		 * 
+		 * @param key
+		 *            Key of the value
+		 * @param value
+		 *            Value
+		 * @param noEscape
+		 *            If true, the given string will not be escaped
+		 * @return key of the inserted String
+		 */
+		public String put(String key, String value, boolean noEscape) {
+			if (value == null)
+				value = (noEscape ? "" : "''");
+			else {
+				if (!noEscape)
+					value = "'" + MySQL.sqlSafeString(value) + "'";
+			}
 			return super.put(key, value);
 		}
 
@@ -73,6 +97,10 @@ public class MySQL {
 
 		public String put(String key, float value) {
 			return super.put(key, Float.toString(value));
+		}
+
+		public String put(String key, double value) {
+			return super.put(key, Double.toString(value));
 		}
 
 	}
@@ -337,7 +365,7 @@ public class MySQL {
 
 		public synchronized int insert(String tablename,
 				Map<String, String> values) throws SQLException {
-			return this.insertStatement(this.tablename, values, false);
+			return this.insertStatement(tablename, values, false);
 		}
 
 		public synchronized int insertIgnore(Map<String, String> values)
@@ -377,9 +405,7 @@ public class MySQL {
 					buffer.append('`');
 					buffer.append(key);
 					buffer.append('`');
-					valuesString.append("'");
 					valuesString.append(values.get(key));
-					valuesString.append("'");
 				}
 				buffer.append(") VALUES (");
 				buffer.append(valuesString.toString());
@@ -424,9 +450,8 @@ public class MySQL {
 
 				buffer.append('`');
 				buffer.append(key);
-				buffer.append("` = '");
-				buffer.append(sqlSafeString(values.get(key)));
-				buffer.append("'");
+				buffer.append("` = ");
+				buffer.append(values.get(key));
 			}
 
 			buffer.append(" WHERE " + getWhereClause());
@@ -888,13 +913,10 @@ public class MySQL {
 	 *             Thrown if occurring while querying
 	 */
 	public String getDBMSVersion() throws SQLException {
-
-		final String query = "SELECT version();";
-		final java.sql.Statement stmt = conn.createStatement();
-
+		final java.sql.Statement stmt = createStatement();
 		try {
 
-			stmt.executeQuery(query);
+			stmt.executeQuery("SELECT version();");
 
 			ResultSet rs = stmt.getResultSet();
 			try {
@@ -928,7 +950,7 @@ public class MySQL {
 	 *            to be processed
 	 * @return
 	 */
-	public String escapeString(String string) {
+	public static String escapeString(String string) {
 		return "'" + sqlSafeString(string) + "'";
 	}
 }
