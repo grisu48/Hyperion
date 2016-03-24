@@ -145,22 +145,23 @@ public class Config {
 		setString(name, section, Integer.toString(value));
 	}
 
-	public synchronized void setString(final String name, String section,
+	public synchronized void setString(final String name, final String section,
 			final String value) {
 		// Read file, set values except the given value
 		final List<String> lines = new LinkedList<String>();
+		final String cSection = normalizeName(section);
 
 		boolean inserted = false; // Indicating if the values is inserted in
 		// the file. If not found, then we need to
 		// add it at the end of the file
 
 		// Read file
+		String currentSection = "";
 		try {
 			// Important: Do no use readFile() but this method, because so it is
 			// a in-situ replacement
 
 			final Scanner scanner = new Scanner(file);
-			String currentSection = "";
 			while (scanner.hasNextLine()) {
 				final String raw = scanner.nextLine();
 				final String line = raw.trim();
@@ -173,9 +174,20 @@ public class Config {
 				if (line.startsWith("[") && line.endsWith("]")) {
 					if (line.equals("[]"))
 						continue;
+					final String oldSection = currentSection;
 					currentSection = line.substring(1);
-					currentSection = line.substring(0, line.length() - 2);
+					currentSection = currentSection.substring(0,
+							line.length() - 2);
 					currentSection = normalizeName(currentSection);
+
+					// Check if we are in the desired section
+					if (oldSection.equalsIgnoreCase(cSection)) {
+						if (!inserted) {
+							lines.add(name + " = " + value);
+							inserted = true;
+						}
+					}
+
 					lines.add(raw);
 				} else {
 					final String[] split = line.split("=", 2);
@@ -204,8 +216,12 @@ public class Config {
 		}
 
 		// Add settings line, if not yet inserted
-		if (!inserted)
+		if (!inserted) {
+			if (!currentSection.equalsIgnoreCase(cSection))
+				lines.add("[" + section + "]");
 			lines.add(name + " = " + value);
+			lines.add("");
+		}
 
 		// Write to file
 		try {
@@ -295,6 +311,10 @@ public class Config {
 
 	public void setBoolean(String name, String section, boolean value) {
 		setString(name, section, (value ? "true" : "false"));
+	}
+
+	public String getFilename() {
+		return file.getAbsoluteFile().getAbsolutePath();
 	}
 
 }
